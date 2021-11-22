@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
@@ -27,7 +26,7 @@ type Entry interface {
 type FileEntry struct {
 	FileSize int64
 	Filename string
-	CheckSum string
+	CheckSum int64
 	file     *os.File
 }
 
@@ -53,7 +52,7 @@ func New(filename string) (*FileEntry, error) {
 	return &FileEntry{
 		FileSize: fileInfo.Size(),
 		Filename: fPath,
-		CheckSum: strconv.Itoa(int(rand.Int31())),
+		CheckSum: rand.Int63(),
 		file:     f,
 	}, nil
 }
@@ -76,14 +75,15 @@ func (fe *FileEntry) SendHeader(conn net.Conn) (int, error) {
 
 // 从TCP链接中读取数据
 func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
-	buf := make([]byte, 2048)
+	buf := make([]byte, 8)
 	readN, err := conn.Read(buf)
 	if err != nil {
 		return err
 	}
+	recvCheckSum := core.BytesToInt64(buf[:readN])
 	// 检查校验和
-	if fe.CheckSum != string(buf[:readN]) {
-		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Header校验和: %s\n", buf[:readN], fe.CheckSum)
+	if fe.CheckSum != recvCheckSum {
+		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Bytes: %v; Header校验和: %s\n", buf[:readN], fe.CheckSum, buf[:readN])
 		return errors.New(errMsg)
 	}
 	return nil
@@ -91,10 +91,9 @@ func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
 
 // 客户端发送响应成功信息给服务端
 func (fe *FileEntry) ResponseHeader(conn net.Conn) error {
-	sendCheckSum := []byte(fe.CheckSum)
-	// fmt.Printf("客户端发送的校验和: %s, bytes: %v\n", sendCheckSum, sendCheckSum)
-	writeN, err := conn.Write(sendCheckSum)
-	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %s, 校验和Bytes: %v\n", writeN, sendCheckSum, sendCheckSum)
+	checkSumBytes := core.Int64ToBytes(fe.CheckSum)
+	writeN, err := conn.Write([]byte(checkSumBytes))
+	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %d, 校验和Bytes: %v\n", writeN, fe.CheckSum, checkSumBytes)
 	if err != nil {
 		return err
 	}
@@ -175,8 +174,9 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 
 // 响应接收成功
 // 返回接收到的文件大小
-func (fe *FileEntry) Close(conn net.Conn, recvSize int) error {
-	_, err := conn.Write([]byte(strconv.Itoa(recvSize)))
+func (fe *FileEntry) Close(conn net.Conn, recvSize int64) error {
+
+	_, err := conn.Write(core.Int64ToBytes(recvSize))
 	if err != nil {
 		return errors.New("发送接收响应失败")
 	}
@@ -185,16 +185,14 @@ func (fe *FileEntry) Close(conn net.Conn, recvSize int) error {
 
 // 检查文件
 func (fe *FileEntry) Finish(conn net.Conn) error {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 8)
 	readN, err := conn.Read(buf)
 	if err != nil {
 		return err
 	}
-	recv, err := strconv.Atoi(string(buf[:readN]))
-	if err != nil {
-		return err
-	}
-	if fe.FileSize != int64(recv) {
+	finishCheck := core.BytesToInt64(buf[:readN])
+
+	if fe.FileSize != finishCheck {
 		return errors.New("文件传输后校验出错")
 	}
 	return nil

@@ -46,7 +46,7 @@ func Client(host, port string) {
 			return
 		}
 		// 接收完成, 校验
-		err = fe.Close(conn, totalRecv)
+		err = fe.Close(conn, int64(totalRecv))
 		if err != nil {
 			log.Printf("文件接收后校验出错, err: %v\n", err)
 			return
