@@ -7,13 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"unsafe"
 )
-
-// func NewRea
-func StructToByte(data interface{}) []byte {
-	return *(*[]byte)(unsafe.Pointer(&data))
-}
 
 func StructEncode(data interface{}) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)

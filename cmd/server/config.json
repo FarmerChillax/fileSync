@@ -1,6 +1,5 @@
 {
-    "ip": "127.0.0.1",
+    "host": "127.0.0.1",
     "port": "5000",
-    "path": "D:\\projectCode\\GithubCodes\\ALiCloudDDNS",
-    "synctime": "2"
+    "syncRoot": "D:/projectCode/GithubCodes/new-school-sdk"
 }

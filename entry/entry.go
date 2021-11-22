@@ -2,8 +2,10 @@ package entry
 
 import (
 	"errors"
+	"fileSync/bar"
 	"fileSync/core"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -12,9 +14,9 @@ import (
 	"time"
 )
 
-const (
-	recvPath = `D:\projectCode\GithubCodes\fileSync\recvDisk`
-	sendPath = `D:\projectCode\GithubCodes\new-school-sdk`
+var (
+	recvPath = core.Conf.SyncRoot
+	sendPath = core.Conf.SyncRoot
 )
 
 type Entry interface {
@@ -74,21 +76,25 @@ func (fe *FileEntry) SendHeader(conn net.Conn) (int, error) {
 
 // 从TCP链接中读取数据
 func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 	readN, err := conn.Read(buf)
 	if err != nil {
 		return err
 	}
 	// 检查校验和
 	if fe.CheckSum != string(buf[:readN]) {
-		return errors.New("检查校验和失败, 校验和不一致: " + fmt.Sprintf(string(buf[:readN])))
+		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Header校验和: %s\n", buf[:readN], fe.CheckSum)
+		return errors.New(errMsg)
 	}
 	return nil
 }
 
 // 客户端发送响应成功信息给服务端
 func (fe *FileEntry) ResponseHeader(conn net.Conn) error {
-	_, err := conn.Write([]byte(fe.CheckSum))
+	sendCheckSum := []byte(fe.CheckSum)
+	// fmt.Printf("客户端发送的校验和: %s, bytes: %v\n", sendCheckSum, sendCheckSum)
+	writeN, err := conn.Write(sendCheckSum)
+	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %s, 校验和Bytes: %v\n", writeN, sendCheckSum, sendCheckSum)
 	if err != nil {
 		return err
 	}
@@ -97,8 +103,14 @@ func (fe *FileEntry) ResponseHeader(conn net.Conn) error {
 
 // 发送文件本体
 func (fe *FileEntry) SendFile(conn net.Conn) error {
+
 	buf := make([]byte, 4096)
 	totalSend := 0
+	var bar bar.Bar
+	bar.NewOption(int64(totalSend), fe.FileSize)
+	defer bar.Finish()
+	defer fe.file.Close()
+
 	for totalSend < int(fe.FileSize) {
 		readN, err := fe.file.Read(buf)
 		if err != nil {
@@ -110,11 +122,13 @@ func (fe *FileEntry) SendFile(conn net.Conn) error {
 		}
 
 		totalSend += readN
+		bar.Play(int64(totalSend))
 
 		if totalSend > int(fe.FileSize) {
 			return errors.New("文件发送出错，发送总量大于文件")
 		}
 	}
+	bar.Finish()
 	return nil
 }
 
@@ -134,6 +148,11 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 	}
 
 	// 开始接收文件
+	var bar bar.Bar
+	bar.NewOption(0, fe.FileSize)
+	defer bar.Finish()
+	defer fe.file.Close()
+
 	buf := make([]byte, 4096)
 	for totalRecv < int(fe.FileSize) {
 		readN, err := conn.Read(buf)
@@ -145,10 +164,12 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 			return totalRecv, err
 		}
 		totalRecv += readN
+		bar.Play(int64(totalRecv))
 		if totalRecv > int(fe.FileSize) {
 			return totalRecv, errors.New("接收出错, 接收内容超出文件大小")
 		}
 	}
+	bar.Finish()
 	return totalRecv, nil
 }
 
@@ -166,6 +187,9 @@ func (fe *FileEntry) Close(conn net.Conn, recvSize int) error {
 func (fe *FileEntry) Finish(conn net.Conn) error {
 	buf := make([]byte, 1024)
 	readN, err := conn.Read(buf)
+	if err != nil {
+		return err
+	}
 	recv, err := strconv.Atoi(string(buf[:readN]))
 	if err != nil {
 		return err

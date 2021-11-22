@@ -11,7 +11,9 @@ import (
 
 func Client(host, port string) {
 	address := net.JoinHostPort(host, port)
+	fmt.Printf("准备建立于 %v的链接\n", address)
 	conn, _ := net.Dial("tcp", address)
+	fmt.Println("链接建立成功")
 	defer conn.Close()
 
 	buf := make([]byte, 4096)
@@ -50,7 +52,6 @@ func Client(host, port string) {
 			return
 		}
 		fmt.Printf("成功接收文件: %v\n", fe)
-
 	}
 
 }

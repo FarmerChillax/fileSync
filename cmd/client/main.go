@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fileSync/core"
 	"fileSync/service"
 	"fmt"
 )
 
 func main() {
 	fmt.Println("client")
-	host := "127.0.0.1"
-	port := "5000"
+	host := core.Conf.Host
+	port := core.Conf.Port
 	service.Client(host, port)
 }

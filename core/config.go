@@ -2,47 +2,60 @@ package core
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"errors"
+	"io/ioutil"
+	"log"
 	"sync"
 )
 
 type Config struct {
-	Ip       string `json:"ip"`
-	Port     string `json:"port"`
-	Path     string `json:"path"`
-	SyncTime string `json:"synctime"`
-	Addr     string
+	Host     string `json:host`
+	Port     string `json:port`
+	SyncRoot string `json:syncRoot`
 }
 
 var (
-	config *Config
-	once   sync.Once
+	Conf *Config
+	once sync.Once
 )
 
 func init() {
-	config = GetConfig()
+	once.Do(func() {
+		conf, err := InitConfig("./config.json")
+		if err != nil {
+			log.Println("读取配置文件错误")
+			return
+		}
+		Conf = conf
+	})
+
 }
 
-func GetConfig() *Config {
-	if config == nil {
-		once.Do(func() {
-			config = &Config{}
-			pwd, err := filepath.Abs(filepath.Dir(os.Args[0]))
-			if err != nil {
-				fmt.Println("Pwd err:", err)
-				os.Exit(1)
-			}
-			f, err := os.Open(filepath.ToSlash(pwd + "/config.json"))
-			if err != nil {
-				os.Exit(1)
-			}
-			if err = json.NewDecoder(f).Decode(config); err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-		})
-	}
-	return config
+func (c *Config) Init(host, port, syncRoot string) {
+	c.Host = host
+	c.Port = port
+	c.SyncRoot = syncRoot
 }
+
+// 读取配置文件
+// 传入文件路径，e.g ./config.json
+func InitConfig(filename string) (*Config, error) {
+	jsonBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var conf Config
+	err = json.Unmarshal(jsonBytes, &conf)
+	if err != nil {
+		return nil, errors.New("解析配置文件失败")
+	}
+	return &conf, nil
+}
+
+// type ServiceConfig struct {
+// 	Config
+// }
+
+// type ClientConfig struct {
+// 	Config
+// }
