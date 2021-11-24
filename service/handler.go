@@ -45,7 +45,7 @@ func HandleConn(conn net.Conn) {
 func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 	cancel context.CancelFunc) {
 	// 退出时关闭goroutine
-	defer fmt.Println("worker退出")
+	defer log.Println("worker退出")
 	defer cancel()
 
 	for task := range tasksChan {
@@ -74,7 +74,4 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 		}
 		log.Printf("[发送成功], 文件名: %s; 文件大小: %d\n", task.Filename, task.FileSize)
 	}
-	// 关闭输出通道
-	log.Println("[传输完成], 通道关闭...")
-
 }

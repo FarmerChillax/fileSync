@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fileSync/bar"
 	"fileSync/core"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -12,9 +13,17 @@ import (
 
 // 客户端发送响应成功信息给服务端
 func (fe *FileEntry) ResponseHeader(conn net.Conn) error {
+	// 文件已传输则跳过
+	fePath := filepath.Join(recvPath, fe.Filename)
+	if alreadySize := IsSkip(fePath); alreadySize == fe.FileSize {
+		fmt.Printf("文件已传输, 跳过该文件: %v\n", fe.Filename)
+		fe.CheckSum = -1
+		fe.FileSize = 0
+	}
+
 	checkSumBytes := core.Int64ToBytes(fe.CheckSum)
 	writeN, err := conn.Write([]byte(checkSumBytes))
-	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %d, 校验和Bytes: %v\n", writeN, fe.CheckSum, checkSumBytes)
+	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %d\n", writeN, fe.CheckSum)
 	if err != nil {
 		return err
 	}

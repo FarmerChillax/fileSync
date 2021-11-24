@@ -33,6 +33,11 @@ func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
 	}
 	recvCheckSum := core.BytesToInt64(buf[:readN])
 	// 检查校验和
+	if recvCheckSum == -1 {
+		// 跳过该文件
+		fe.FileSize = 0
+		return nil
+	}
 	if fe.CheckSum != recvCheckSum {
 		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Bytes: %v; Header校验和: %s\n", buf[:readN], fe.CheckSum, buf[:readN])
 		return errors.New(errMsg)
@@ -74,7 +79,6 @@ func (fe *FileEntry) Send(conn net.Conn) error {
 // 接收客户端文件传输完成的校验
 // 接收客户端接收到的文件大小，与自身的文件大小做判断
 func (fe *FileEntry) Finish(conn net.Conn) error {
-	defer fe.file.Close()
 
 	buf := make([]byte, 8)
 	readN, err := conn.Read(buf)
