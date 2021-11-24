@@ -40,7 +40,7 @@ func Client(host, port string) {
 			return
 		}
 		// 接收文件本体
-		totalRecv, err := fe.RecvFile(conn)
+		totalRecv, err := fe.Recv(conn)
 		if err != nil {
 			log.Printf("接收文件出错, err: %v\n", err)
 			return

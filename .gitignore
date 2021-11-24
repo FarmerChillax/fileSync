@@ -6,4 +6,7 @@ test
 disk
 .vscode
 *.exe
-
+*.json
+config.json
+cmd/client/config.json
+cmd/server/config.json

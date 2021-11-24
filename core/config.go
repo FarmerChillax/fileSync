@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"log"
 	"sync"
 )
 
@@ -23,12 +22,12 @@ func init() {
 	once.Do(func() {
 		conf, err := InitConfig("./config.json")
 		if err != nil {
-			log.Println("读取配置文件错误")
+			HandleError("初始化配置文件", err)
 			return
 		}
+		// conf := &Config{}
 		Conf = conf
 	})
-
 }
 
 func (c *Config) Init(host, port, syncRoot string) {
