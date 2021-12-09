@@ -50,28 +50,20 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 
 	for task := range tasksChan {
 		// 发送header entry
-		sendN, err := task.SendHeader(conn)
-		if core.HandleError("发送Header失败", err) {
+		err := task.SendHeader(conn)
+		if core.HandleError("发送帧头出错", err) {
 			return
 		}
-		log.Println("[发送Header成功], Header大小:", sendN)
-
-		// 接收响应信息
-		err = task.RecvHeaderResponse(conn)
-		if core.HandleError("接收响应信息失败", err) {
+		fmt.Println(task.GetHeader())
+		// 发送文件名
+		err = task.SendFileName(conn)
+		if core.HandleError("发送文件名出错", err) {
 			return
 		}
-		log.Println("[校验和校验成功], 开始发送文件...")
-		// 发送file本体
-		err = task.Send(conn)
-		if core.HandleError("发送文件出错", err) {
+		// 发送文件本体
+		err = task.SendFile(conn)
+		if core.HandleError("发送文件本体出错", err) {
 			return
 		}
-		// 校验客户端接收的文件
-		err = task.Finish(conn)
-		if core.HandleError("文件接收校验出错", err) {
-			return
-		}
-		log.Printf("[发送成功], 文件名: %s; 文件大小: %d\n", task.Filename, task.FileSize)
 	}
 }

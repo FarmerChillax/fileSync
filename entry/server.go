@@ -4,46 +4,29 @@ import (
 	"errors"
 	"fileSync/bar"
 	"fileSync/core"
-	"fmt"
 	"net"
 )
 
-// 发送文件Header给客户端
-func (fe *FileEntry) SendHeader(conn net.Conn) (int, error) {
-	// 编码后发送header
-	feBytes, err := core.StructEncode(fe)
-	if err != nil {
-		return 0, err
-	}
-	// 发送Header
-	writeN, err := conn.Write(feBytes)
-	if err != nil {
-		return 0, err
-	}
-
-	return writeN, nil
-}
-
 // 接收客户端的Header响应
-func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
-	buf := make([]byte, 8)
-	readN, err := conn.Read(buf)
-	if err != nil {
-		return err
-	}
-	recvCheckSum := core.BytesToInt64(buf[:readN])
-	// 检查校验和
-	if recvCheckSum == -1 {
-		// 跳过该文件
-		fe.FileSize = 0
-		return nil
-	}
-	if fe.CheckSum != recvCheckSum {
-		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Bytes: %v; Header校验和: %s\n", buf[:readN], fe.CheckSum, buf[:readN])
-		return errors.New(errMsg)
-	}
-	return nil
-}
+// func (fe *FileEntry) RecvHeaderResponse(conn net.Conn) error {
+// 	buf := make([]byte, 8)
+// 	readN, err := conn.Read(buf)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	recvCheckSum := core.BytesToInt64(buf[:readN])
+// 	// 检查校验和
+// 	if recvCheckSum == -1 {
+// 		// 跳过该文件
+// 		fe.FileSize = 0
+// 		return nil
+// 	}
+// 	if fe.CheckSum != recvCheckSum {
+// 		errMsg := fmt.Sprintf("检查校验和失败, 校验和不一致: %s; Bytes: %v; Header校验和: %s\n", buf[:readN], fe.CheckSum, buf[:readN])
+// 		return errors.New(errMsg)
+// 	}
+// 	return nil
+// }
 
 // 发送文件本体
 func (fe *FileEntry) Send(conn net.Conn) error {
@@ -51,11 +34,11 @@ func (fe *FileEntry) Send(conn net.Conn) error {
 	buf := make([]byte, 4096)
 	totalSend := 0
 	var bar bar.Bar
-	bar.NewOption(int64(totalSend), fe.FileSize)
+	bar.NewOption(int64(totalSend), fe.header.FileSize)
 	defer bar.Finish()
 	defer fe.file.Close()
 
-	for totalSend < int(fe.FileSize) {
+	for totalSend < int(fe.header.FileSize) {
 		readN, err := fe.file.Read(buf)
 		if err != nil {
 			return err
@@ -68,7 +51,7 @@ func (fe *FileEntry) Send(conn net.Conn) error {
 		totalSend += readN
 		bar.Play(int64(totalSend))
 
-		if totalSend > int(fe.FileSize) {
+		if totalSend > int(fe.header.FileSize) {
 			return errors.New("文件发送出错，发送总量大于文件")
 		}
 	}
@@ -87,7 +70,7 @@ func (fe *FileEntry) Finish(conn net.Conn) error {
 	}
 	finishCheck := core.BytesToInt64(buf[:readN])
 
-	if fe.FileSize != finishCheck {
+	if fe.header.FileSize != finishCheck {
 		return errors.New("文件传输后校验出错")
 	}
 	return nil

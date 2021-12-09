@@ -1,9 +1,14 @@
 package entry
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fileSync/core"
+	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,16 +24,26 @@ type Entry interface {
 	Recv()
 }
 
+type Header struct {
+	FileSize     int64
+	FileNameSize int64
+}
+
 type FileEntry struct {
-	FileSize int64
-	Filename string
-	CheckSum int64
+	header   *Header
+	filename []byte
 	file     *os.File
 }
 
 func init() {
 	// 初始化随机种子，用于传输校验
 	rand.Seed(time.Now().UnixNano())
+}
+
+func GetEmpty() *FileEntry {
+	return &FileEntry{
+		header: &Header{},
+	}
 }
 
 func New(filename string) (*FileEntry, error) {
@@ -46,10 +61,126 @@ func New(filename string) (*FileEntry, error) {
 		return nil, errors.New("获取相对路径失败")
 	}
 
+	filePathBuffer := bytes.NewBufferString(fPath)
 	return &FileEntry{
-		FileSize: fileInfo.Size(),
-		Filename: fPath,
-		CheckSum: rand.Int63(),
-		file:     f,
+		header: &Header{
+			FileSize:     fileInfo.Size(),
+			FileNameSize: int64(filePathBuffer.Len()),
+		},
+		filename: filePathBuffer.Bytes(),
+		// CheckSum: rand.Int63(),
+		file: f,
 	}, nil
+}
+
+func (fe *FileEntry) GetHeader() Header {
+	return *fe.header
+}
+
+func (fe *FileEntry) GetFileName() string {
+	return string(fe.filename)
+}
+
+// 发送文件Header
+func (fe *FileEntry) SendHeader(conn net.Conn) error {
+	buf := &bytes.Buffer{}
+	err := binary.Write(buf, binary.BigEndian, fe.header)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(buf.Bytes())
+	fmt.Printf("发送出去的Header: %v; bytes: %v\n", fe.header, buf)
+	return err
+}
+
+// 接收文件Header
+func (fe *FileEntry) RecvHeader(conn net.Conn) error {
+	err := binary.Read(conn, binary.BigEndian, fe.header)
+	return err
+}
+
+// 发送文件名
+func (fe *FileEntry) SendFileName(conn net.Conn) error {
+	_, err := conn.Write(fe.filename)
+	return err
+}
+
+// 接收文件名
+func (fe *FileEntry) RecvFileName(conn net.Conn) error {
+	buf := make([]byte, fe.header.FileNameSize)
+	reader := bufio.NewReader(conn)
+	_, err := reader.Read(buf)
+	// filename, err := reader.Peek(int(fe.header.FileNameSize))
+	if err != nil {
+		return err
+	}
+	fe.filename = buf
+	return nil
+}
+
+// 往tcp stream写文件
+func (fe *FileEntry) SendFile(conn net.Conn) error {
+	buf := make([]byte, 4096)
+	totalSend := 0
+
+	defer fe.file.Close()
+	for totalSend < int(fe.header.FileSize) {
+		readN, err := fe.file.Read(buf)
+		if err != nil {
+			return err
+		}
+		writeN, err := conn.Write(buf[:readN])
+		if err != nil {
+			return err
+		}
+		totalSend += writeN
+		if totalSend > int(fe.header.FileSize) {
+			return errors.New("文件发送错误, 发送总量大于文件")
+		}
+	}
+	return nil
+}
+
+// 从tcp stream 读文件
+func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
+	// fmt.Println()
+	// time.Sleep(time.Second * 3)
+
+	fePath := filepath.Join(recvPath, string(fe.filename))
+	if fe.file == nil {
+		err = preRecvFile(fePath)
+		if err != nil {
+			return totalRecv, err
+		}
+
+		fe.file, err = os.OpenFile(fePath, os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return totalRecv, err
+		}
+	}
+
+	reader := bufio.NewReader(conn)
+	nextRecv := 4096
+	if fe.header.FileSize < 4096 {
+		nextRecv = int(fe.header.FileSize)
+	}
+
+	for totalRecv < int(fe.header.FileSize) {
+		// 读取内容
+		readBytes, err := reader.Peek(nextRecv)
+		if err != nil {
+			return totalRecv, err
+		}
+		// 写入文件
+		_, err = fe.file.Write(readBytes)
+		if err != nil {
+			return totalRecv, err
+		}
+		totalRecv += nextRecv
+		if fe.header.FileSize-int64(totalRecv) < int64(nextRecv) {
+			nextRecv = int(fe.header.FileSize) - totalRecv
+		}
+	}
+
+	return
 }
