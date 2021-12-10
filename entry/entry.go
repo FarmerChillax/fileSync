@@ -158,21 +158,24 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 			return totalRecv, err
 		}
 	}
-
-	reader := bufio.NewReader(conn)
+	fmt.Println("创建空间成功")
+	// reader := bufio.NewReader(conn)
+	// writer := bufio.NewWriter(fe.file)
+	// rw := bufio.NewReadWriter(reader, writer)
+	defer fe.file.Close()
 	nextRecv := 4096
 	if fe.header.FileSize < 4096 {
 		nextRecv = int(fe.header.FileSize)
 	}
-
+	buf := make([]byte, 4096)
 	for totalRecv < int(fe.header.FileSize) {
 		// 读取内容
-		readBytes, err := reader.Peek(nextRecv)
+		_, err := conn.Read(buf[:nextRecv])
 		if err != nil {
 			return totalRecv, err
 		}
 		// 写入文件
-		_, err = fe.file.Write(readBytes)
+		_, err = fe.file.Write(buf[:nextRecv])
 		if err != nil {
 			return totalRecv, err
 		}

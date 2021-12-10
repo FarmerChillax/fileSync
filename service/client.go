@@ -40,6 +40,7 @@ func Client(host, port string) {
 			return
 		}
 		fmt.Printf("接受文件成功, 大小: %v\n", readN)
+		break
 	}
 
 }

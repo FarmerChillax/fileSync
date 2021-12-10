@@ -61,9 +61,11 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 			return
 		}
 		// 发送文件本体
+		fmt.Println("成功发送文件名:", task.GetFileName())
 		err = task.SendFile(conn)
 		if core.HandleError("发送文件本体出错", err) {
 			return
 		}
+		break
 	}
 }
