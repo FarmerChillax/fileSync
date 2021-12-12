@@ -89,7 +89,7 @@ func (fe *FileEntry) SendHeader(conn net.Conn) error {
 		return err
 	}
 	_, err = conn.Write(buf.Bytes())
-	fmt.Printf("发送出去的Header: %v; bytes: %v\n", fe.header, buf)
+	fmt.Printf("发送出去的Header: %v; bytes: %v\n", fe.header, buf.Bytes())
 	return err
 }
 
@@ -138,6 +138,8 @@ func (fe *FileEntry) SendFile(conn net.Conn) error {
 			return errors.New("文件发送错误, 发送总量大于文件")
 		}
 	}
+
+	fmt.Println("发送结束，发送大小:", totalSend)
 	return nil
 }
 
@@ -167,21 +169,23 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 	if fe.header.FileSize < 4096 {
 		nextRecv = int(fe.header.FileSize)
 	}
-	buf := make([]byte, 4096)
+	buf := make([]byte, nextRecv)
 	for totalRecv < int(fe.header.FileSize) {
 		// 读取内容
-		_, err := conn.Read(buf[:nextRecv])
+		readN, err := conn.Read(buf)
+		// fmt.Printf("next recv: %v; readN: %v; total: %v\n", nextRecv, readN, totalRecv)
 		if err != nil {
 			return totalRecv, err
 		}
 		// 写入文件
-		_, err = fe.file.Write(buf[:nextRecv])
+		_, err = fe.file.Write(buf[:readN])
 		if err != nil {
 			return totalRecv, err
 		}
-		totalRecv += nextRecv
+		totalRecv += readN
 		if fe.header.FileSize-int64(totalRecv) < int64(nextRecv) {
 			nextRecv = int(fe.header.FileSize) - totalRecv
+			buf = make([]byte, nextRecv)
 		}
 	}
 

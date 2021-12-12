@@ -66,6 +66,7 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 		if core.HandleError("发送文件本体出错", err) {
 			return
 		}
-		break
+		fmt.Println()
+		// break
 	}
 }
