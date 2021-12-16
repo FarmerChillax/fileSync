@@ -22,6 +22,12 @@ func (fe *FileEntry) SendFileName(conn net.Conn) error {
 	return err
 }
 
+// 检测客户端该文件是否完整
+func (fe *FileEntry) RecvExist(conn net.Conn) error {
+	err := binary.Read(conn, binary.BigEndian, fe.header)
+	return err
+}
+
 // 往tcp stream写文件
 func (fe *FileEntry) SendFile(conn net.Conn) error {
 	buf := make([]byte, 4096)

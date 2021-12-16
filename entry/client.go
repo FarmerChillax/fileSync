@@ -25,12 +25,12 @@ func (fe *FileEntry) RecvFileName(conn net.Conn) error {
 }
 
 func (fe *FileEntry) CheckExistFile(conn net.Conn) error {
-	existSize := GetExistFileSize(string(fe.filename))
-	if existSize != fe.header.FileSize {
-		return nil
+	fePath := filepath.Join(recvPath, string(fe.filename))
+	existSize := GetExistFileSize(fePath)
+	if existSize == fe.header.FileSize {
+		fe.header.FileSize = 0
+		fe.header.IsSkip = true
 	}
-	fe.header.FileSize = 0
-	fe.header.IsSkip = true
 
 	err := binary.Write(conn, binary.BigEndian, fe.header)
 	if err != nil {
