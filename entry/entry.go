@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"bytes"
 	"errors"
 	"fileSync/core"
 	"math/rand"
@@ -19,16 +20,32 @@ type Entry interface {
 	Recv()
 }
 
+type frame struct {
+	// control type
+	// 0-> push; 1-> pull;
+	Type         uint8
+	FileSize     int64
+	FileNameSize int64
+	IsSkip       bool
+}
+
+type Header frame
+
 type FileEntry struct {
-	FileSize int64
-	Filename string
-	CheckSum int64
+	header   *Header
+	filename []byte
 	file     *os.File
 }
 
 func init() {
 	// 初始化随机种子，用于传输校验
 	rand.Seed(time.Now().UnixNano())
+}
+
+func GetEmpty() *FileEntry {
+	return &FileEntry{
+		header: &Header{},
+	}
 }
 
 func New(filename string) (*FileEntry, error) {
@@ -46,10 +63,37 @@ func New(filename string) (*FileEntry, error) {
 		return nil, errors.New("获取相对路径失败")
 	}
 
+	filePathBuffer := bytes.NewBufferString(fPath)
 	return &FileEntry{
-		FileSize: fileInfo.Size(),
-		Filename: fPath,
-		CheckSum: rand.Int63(),
+		header: &Header{
+			FileSize:     fileInfo.Size(),
+			FileNameSize: int64(filePathBuffer.Len()),
+		},
+		filename: filePathBuffer.Bytes(),
 		file:     f,
 	}, nil
+}
+
+func (fe *FileEntry) GetHeader() Header {
+	return *fe.header
+}
+
+func (fe *FileEntry) SetHeader(header *Header) {
+	fe.header = header
+}
+
+func (fe *FileEntry) GetFileName() string {
+	return string(fe.filename)
+}
+
+func (fe *FileEntry) SetFileName(filename string) {
+	fe.filename = []byte(filename)
+}
+
+func (fe *FileEntry) SetType(t uint8) {
+	fe.header.Type = t
+}
+
+func (fe *FileEntry) GetType() uint8 {
+	return fe.header.Type
 }

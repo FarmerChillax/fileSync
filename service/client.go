@@ -5,7 +5,6 @@ import (
 	"fileSync/entry"
 	"fmt"
 	"io"
-	"log"
 	"net"
 )
 
@@ -16,42 +15,32 @@ func Client(host, port string) {
 	fmt.Println("链接建立成功")
 	defer conn.Close()
 
-	buf := make([]byte, 4096)
 	for {
-		// 获取 Header Entry
-		r, err := conn.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println("文件传输完成...")
-			}
+		fe := entry.GetEmpty()
+		// get Header
+		fmt.Println(fe.GetHeader())
+		err := fe.RecvHeader(conn)
+		if err == io.EOF {
+			fmt.Println("tcp通道关闭")
 			return
 		}
-		fe := entry.FileEntry{}
-		err = core.StructDecode(buf[:r], &fe)
-		if err != nil {
-			log.Println(err)
-		}
-
-		fmt.Printf("开始接收文件: %v\n", fe)
-		// 发送响应
-		err = fe.ResponseHeader(conn)
-		if err != nil {
-			log.Printf("响应服务端失败, err: %v\n", err)
+		fmt.Println(fe.GetHeader())
+		if core.HandleError("接受帧头出错", err) {
 			return
 		}
-		// 接收文件本体
-		totalRecv, err := fe.Recv(conn)
-		if err != nil {
-			log.Printf("接收文件出错, err: %v\n", err)
+		// recv filename
+		err = fe.RecvFileName(conn)
+		if core.HandleError("接受文件名出错", err) {
 			return
 		}
-		// 接收完成, 校验
-		err = fe.Close(conn, int64(totalRecv))
-		if err != nil {
-			log.Printf("文件接收后校验出错, err: %v\n", err)
+		fmt.Printf("recv file: %s\n", fe.GetFileName())
+		// save file
+		readN, err := fe.RecvFile(conn)
+		if core.HandleError("接受文件出错", err) {
 			return
 		}
-		fmt.Printf("成功接收文件: %v\n", fe)
+		fmt.Printf("接受文件成功, 大小: %v\n", readN)
+		// break
 	}
 
 }
