@@ -20,13 +20,16 @@ type Entry interface {
 	Recv()
 }
 
-type Header struct {
+type frame struct {
 	// control type
-	// 0: push; 1: pull;
+	// 0-> push; 1-> pull;
 	Type         uint8
 	FileSize     int64
 	FileNameSize int64
+	IsSkip       bool
 }
+
+type Header frame
 
 type FileEntry struct {
 	header   *Header
@@ -75,6 +78,22 @@ func (fe *FileEntry) GetHeader() Header {
 	return *fe.header
 }
 
+func (fe *FileEntry) SetHeader(header *Header) {
+	fe.header = header
+}
+
 func (fe *FileEntry) GetFileName() string {
 	return string(fe.filename)
+}
+
+func (fe *FileEntry) SetFileName(filename string) {
+	fe.filename = []byte(filename)
+}
+
+func (fe *FileEntry) SetType(t uint8) {
+	fe.header.Type = t
+}
+
+func (fe *FileEntry) GetType() uint8 {
+	return fe.header.Type
 }

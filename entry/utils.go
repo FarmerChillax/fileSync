@@ -20,7 +20,8 @@ func preRecvFile(p string) error {
 	}
 	return nil
 }
-func IsSkip(filename string) int64 {
+
+func GetExistFileSize(filename string) int64 {
 	if IsExist(filename) {
 		info, err := os.Stat(filename)
 		if core.HandleError("检查是否跳过该文件", err) {

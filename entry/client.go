@@ -10,7 +10,6 @@ import (
 // 接收文件Header
 func (fe *FileEntry) RecvHeader(conn net.Conn) error {
 	err := binary.Read(conn, binary.BigEndian, fe.header)
-	// json
 	return err
 }
 
@@ -22,6 +21,21 @@ func (fe *FileEntry) RecvFileName(conn net.Conn) error {
 		return err
 	}
 	fe.filename = buf[:readN]
+	return nil
+}
+
+func (fe *FileEntry) CheckExistFile(conn net.Conn) error {
+	existSize := GetExistFileSize(string(fe.filename))
+	if existSize != fe.header.FileSize {
+		return nil
+	}
+	fe.header.FileSize = 0
+	fe.header.IsSkip = true
+
+	err := binary.Write(conn, binary.BigEndian, fe.header)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

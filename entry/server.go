@@ -1,7 +1,6 @@
 package entry
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,13 +9,10 @@ import (
 
 // 发送文件Header
 func (fe *FileEntry) SendHeader(conn net.Conn) error {
-	buf := &bytes.Buffer{}
-	err := binary.Write(buf, binary.BigEndian, fe.header)
+	err := binary.Write(conn, binary.BigEndian, fe.header)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(buf.Bytes())
-	fmt.Printf("发送出去的Header: %v; bytes: %v\n", fe.header, buf.Bytes())
 	return err
 }
 
