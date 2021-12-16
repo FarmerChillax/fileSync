@@ -34,6 +34,12 @@ func Client(host, port string) {
 			return
 		}
 		fmt.Printf("recv file: %s\n", fe.GetFileName())
+		// check exist
+		err = fe.CheckExistFile(conn)
+		if core.HandleError("检测文件存在出错", err) {
+			return
+		}
+		fmt.Println("是否跳过:", fe.GetHeader())
 		// save file
 		readN, err := fe.RecvFile(conn)
 		if core.HandleError("接受文件出错", err) {

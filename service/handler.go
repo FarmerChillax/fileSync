@@ -14,15 +14,17 @@ import (
 var root = core.Conf.SyncRoot
 var maxRescoures = 2
 
-// 处理TCP链接
-// 遍历文件夹，发送文件
 func HandleConn(conn net.Conn) {
 	defer conn.Close()
-	fmt.Println("链接--ok")
+	TaskHandler(conn)
+}
+
+// 处理TCP链接
+// 遍历文件夹，发送文件
+func TaskHandler(conn net.Conn) {
 	tasksChan := make(chan *entry.FileEntry, maxRescoures)
 	ctx, cancel := context.WithCancel(context.Background())
 	go worker(conn, tasksChan, cancel)
-	fmt.Println("Worker Running...")
 	// 遍历发送文件
 	filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() {
@@ -39,7 +41,6 @@ func HandleConn(conn net.Conn) {
 	close(tasksChan)
 	<-ctx.Done()
 	log.Println("传输完成，TCP通道关闭...")
-
 }
 
 func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
@@ -60,8 +61,14 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 		if core.HandleError("发送文件名出错", err) {
 			return
 		}
-		// 发送文件本体
 		fmt.Println("成功发送文件名:", task.GetFileName())
+		// 检测文件是否完整
+		err = task.RecvExist(conn)
+		if core.HandleError("检测文件是否存在出错", err) {
+			return
+		}
+		fmt.Println("是否跳过:", task.GetHeader())
+		// 发送文件本体
 		err = task.SendFile(conn)
 		if core.HandleError("发送文件本体出错", err) {
 			return
