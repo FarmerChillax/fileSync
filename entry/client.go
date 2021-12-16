@@ -1,47 +1,38 @@
 package entry
 
 import (
-	"encoding/binary"
+	"errors"
+	"fileSync/bar"
+	"fileSync/core"
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
 )
 
-// 接收文件Header
-func (fe *FileEntry) RecvHeader(conn net.Conn) error {
-	err := binary.Read(conn, binary.BigEndian, fe.header)
-	return err
-}
-
-// 接收文件名
-func (fe *FileEntry) RecvFileName(conn net.Conn) error {
-	buf := make([]byte, fe.header.FileNameSize)
-	readN, err := conn.Read(buf)
-	if err != nil {
-		return err
-	}
-	fe.filename = buf[:readN]
-	return nil
-}
-
-func (fe *FileEntry) CheckExistFile(conn net.Conn) error {
-	fePath := filepath.Join(recvPath, string(fe.filename))
-	existSize := GetExistFileSize(fePath)
-	if existSize == fe.header.FileSize {
-		fe.header.FileSize = 0
-		fe.header.IsSkip = true
+// 客户端发送响应成功信息给服务端
+func (fe *FileEntry) ResponseHeader(conn net.Conn) error {
+	// 文件已传输则跳过
+	fePath := filepath.Join(recvPath, fe.Filename)
+	if alreadySize := IsSkip(fePath); alreadySize == fe.FileSize {
+		fmt.Printf("文件已传输, 跳过该文件: %v\n", fe.Filename)
+		fe.CheckSum = -1
+		fe.FileSize = 0
 	}
 
-	err := binary.Write(conn, binary.BigEndian, fe.header)
+	checkSumBytes := core.Int64ToBytes(fe.CheckSum)
+	writeN, err := conn.Write([]byte(checkSumBytes))
+	log.Printf("[写入TCP流校验和] 校验和长度: %v; 校验和内容: %d\n", writeN, fe.CheckSum)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// 从tcp stream 读文件
-func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
-	fePath := filepath.Join(recvPath, string(fe.filename))
+// 接收文件本体
+func (fe *FileEntry) Recv(conn net.Conn) (totalRecv int, err error) {
+	fePath := filepath.Join(recvPath, fe.Filename)
 	if fe.file == nil {
 		err = preRecvFile(fePath)
 		if err != nil {
@@ -54,29 +45,39 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 		}
 	}
 
+	// 开始接收文件
+	var bar bar.Bar
+	bar.NewOption(0, fe.FileSize)
+	defer bar.Finish()
 	defer fe.file.Close()
-	nextRecv := 4096
-	if fe.header.FileSize < 4096 {
-		nextRecv = int(fe.header.FileSize)
-	}
-	buf := make([]byte, nextRecv)
-	for totalRecv < int(fe.header.FileSize) {
-		// 读取内容
+
+	buf := make([]byte, 4096)
+	for totalRecv < int(fe.FileSize) {
 		readN, err := conn.Read(buf)
 		if err != nil {
 			return totalRecv, err
 		}
-		// 写入文件
 		_, err = fe.file.Write(buf[:readN])
 		if err != nil {
 			return totalRecv, err
 		}
 		totalRecv += readN
-		if fe.header.FileSize-int64(totalRecv) < int64(nextRecv) {
-			nextRecv = int(fe.header.FileSize) - totalRecv
-			buf = make([]byte, nextRecv)
+		bar.Play(int64(totalRecv))
+		if totalRecv > int(fe.FileSize) {
+			return totalRecv, errors.New("接收出错, 接收内容超出文件大小")
 		}
 	}
+	bar.Finish()
+	return totalRecv, nil
+}
 
-	return
+// 响应接收成功
+// 返回接收到的文件大小
+func (fe *FileEntry) Close(conn net.Conn, recvSize int64) error {
+
+	_, err := conn.Write(core.Int64ToBytes(recvSize))
+	if err != nil {
+		return errors.New("发送接收响应失败")
+	}
+	return nil
 }
