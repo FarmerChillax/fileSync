@@ -10,6 +10,12 @@ type Bar struct {
 	graph   string
 }
 
+func New(total int64) *Bar {
+	b := Bar{}
+	b.NewOption(0, total)
+	return &b
+}
+
 // 初始化
 // 自定义显示图案
 func (bar *Bar) NewOptionWithGraph(start, total int64, graph string) {

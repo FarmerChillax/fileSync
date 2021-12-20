@@ -3,28 +3,26 @@ package service
 import (
 	"fileSync/core"
 	"fileSync/entry"
-	"fmt"
 	"io"
+	"log"
 	"net"
 )
 
 func Client(host, port string) {
 	address := net.JoinHostPort(host, port)
-	fmt.Printf("准备建立于 %v的链接\n", address)
+	log.Printf("准备建立于 %v的链接\n", address)
 	conn, _ := net.Dial("tcp", address)
-	fmt.Println("链接建立成功")
 	defer conn.Close()
 
 	for {
 		fe := entry.GetEmpty()
 		// get Header
-		fmt.Println(fe.GetHeader())
 		err := fe.RecvHeader(conn)
 		if err == io.EOF {
-			fmt.Println("tcp通道关闭")
+			// 正常传输完成
+			// 后期添加任务完成标记
 			return
 		}
-		fmt.Println(fe.GetHeader())
 		if core.HandleError("接受帧头出错", err) {
 			return
 		}
@@ -33,20 +31,21 @@ func Client(host, port string) {
 		if core.HandleError("接受文件名出错", err) {
 			return
 		}
-		fmt.Printf("recv file: %s\n", fe.GetFileName())
 		// check exist
 		err = fe.CheckExistFile(conn)
 		if core.HandleError("检测文件存在出错", err) {
 			return
 		}
-		fmt.Println("是否跳过:", fe.GetHeader())
 		// save file
 		readN, err := fe.RecvFile(conn)
 		if core.HandleError("接受文件出错", err) {
 			return
 		}
-		fmt.Printf("接受文件成功, 大小: %v\n", readN)
-		// break
+		if fe.GetHeader().IsSkip {
+			log.Printf("跳过传输, 文件已存在:%s", fe.GetFileName())
+		} else {
+			log.Printf("接受文件成功, 传输大小: %v\n", readN)
+		}
 	}
 
 }

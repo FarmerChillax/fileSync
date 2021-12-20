@@ -3,13 +3,15 @@ package main
 import (
 	"fileSync/core"
 	"fileSync/service"
-	"fmt"
+	"log"
+	"time"
 )
 
 func main() {
-	fmt.Println("client")
+
 	host := core.Conf.Host
 	port := core.Conf.Port
-	fmt.Println(core.Conf.SyncRoot)
+	startTime := time.Now()
 	service.Client(host, port)
+	log.Printf("传输耗时: %v\n", time.Since(startTime))
 }

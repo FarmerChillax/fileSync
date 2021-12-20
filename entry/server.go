@@ -3,7 +3,6 @@ package entry
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 )
 
@@ -48,7 +47,5 @@ func (fe *FileEntry) SendFile(conn net.Conn) error {
 			return errors.New("文件发送错误, 发送总量大于文件")
 		}
 	}
-
-	fmt.Println("发送结束，发送大小:", totalSend)
 	return nil
 }

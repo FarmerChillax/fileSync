@@ -4,7 +4,6 @@ import (
 	"context"
 	"fileSync/core"
 	"fileSync/entry"
-	"fmt"
 	"io/fs"
 	"log"
 	"net"
@@ -55,25 +54,22 @@ func worker(conn net.Conn, tasksChan chan *entry.FileEntry,
 		if core.HandleError("发送帧头出错", err) {
 			return
 		}
-		fmt.Println(task.GetHeader())
 		// 发送文件名
 		err = task.SendFileName(conn)
 		if core.HandleError("发送文件名出错", err) {
 			return
 		}
-		fmt.Println("成功发送文件名:", task.GetFileName())
 		// 检测文件是否完整
 		err = task.RecvExist(conn)
 		if core.HandleError("检测文件是否存在出错", err) {
 			return
 		}
-		fmt.Println("是否跳过:", task.GetHeader())
 		// 发送文件本体
+		log.Printf("开始发送, 文件名: %s\n", task.GetFileName())
 		err = task.SendFile(conn)
 		if core.HandleError("发送文件本体出错", err) {
 			return
 		}
-		fmt.Println()
-		// break
+		log.Printf("发送完成, 文件名: %s\n", task.GetFileName())
 	}
 }
