@@ -2,6 +2,7 @@ package entry
 
 import (
 	"encoding/binary"
+	"fileSync/bar"
 	"net"
 	"os"
 	"path/filepath"
@@ -41,6 +42,7 @@ func (fe *FileEntry) CheckExistFile(conn net.Conn) error {
 
 // 从tcp stream 读文件
 func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
+	// preRecv
 	fePath := filepath.Join(recvPath, string(fe.filename))
 	if fe.file == nil {
 		err = preRecvFile(fePath)
@@ -53,13 +55,17 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 			return totalRecv, err
 		}
 	}
-
+	// init recv setting
+	bar := bar.New(fe.header.FileSize)
 	defer fe.file.Close()
+	// defer bar.Finish()
+
 	nextRecv := 4096
 	if fe.header.FileSize < 4096 {
 		nextRecv = int(fe.header.FileSize)
 	}
 	buf := make([]byte, nextRecv)
+
 	for totalRecv < int(fe.header.FileSize) {
 		// 读取内容
 		readN, err := conn.Read(buf)
@@ -72,6 +78,7 @@ func (fe *FileEntry) RecvFile(conn net.Conn) (totalRecv int, err error) {
 			return totalRecv, err
 		}
 		totalRecv += readN
+		bar.Play(int64(totalRecv))
 		if fe.header.FileSize-int64(totalRecv) < int64(nextRecv) {
 			nextRecv = int(fe.header.FileSize) - totalRecv
 			buf = make([]byte, nextRecv)
